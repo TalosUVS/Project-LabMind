@@ -24,13 +24,13 @@ This project demonstrates how to leverage the AG2 framework alongside Google's G
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/ag2-gemini-agents.git
-cd ag2-gemini-agents
+git clone https://github.com/TalosUVS/Project-LabMind.git
+cd Project-LabMind
 ```
 
 2. Install required dependencies:
 ```bash
-pip install -r requirements.txt
+pip install ag2[gemini]
 ```
 
 3. Create your configuration file `OAI_CONFIG_LIST.json`:
@@ -42,17 +42,7 @@ pip install -r requirements.txt
 }
 ```
 
-4. Set up your environment variables:
-```bash
-export GEMINI_API_KEY="your-gemini-api-key-here"
-```
-
-## 📦 Requirements
-
-Create a `requirements.txt` file with:
-```
-ag2[gemini]
-```
+4. Set up:
 
 ## 🔧 Configuration File
 

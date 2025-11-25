@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AG2 Script Runner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1b4b 0%, #581c87 50%, #1e1b4b 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(30, 27, 75, 0.5);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(147, 51, 234, 0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(90deg, #9333ea 0%, #3b82f6 100%);
+            padding: 30px;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.95em;
+        }
+
+        .status-bar {
+            padding: 16px 30px;
+            background: rgba(30, 27, 75, 0.7);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+
+        .status-indicator.connected {
+            background: #22c55e;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.checking {
+            background: #eab308;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status-text {
+            color: #cbd5e1;
+            font-size: 0.9em;
+        }
+
+        .refresh-btn {
+            margin-left: auto;
+            background: none;
+            border: none;
+            color: #a78bfa;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover {
+            color: #c4b5fd;
+            background: rgba(167, 139, 250, 0.1);
+        }
+
+        .controls {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #cbd5e1;
+            font-weight: 500;
+            font-size: 0.9em;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px 16px;
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #9333ea;
+            box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.1);
+        }
+
+        select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95em;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-run {
+            background: linear-gradient(90deg, #16a34a 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+        }
+
+        .btn-run:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(22, 163, 74, 0.4);
+        }
+
+        .btn-stop {
+            background: linear-gradient(90deg, #dc2626 0%, #ef4444 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+        }
+
+        .btn-stop:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(220, 38, 38, 0.4);
+        }
+
+        .btn-clear {
+            background: #334155;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #475569;
+        }
+
+        .chat-section {
+            padding: 0 30px 30px;
+        }
+
+        .chat-container {
+            background: #020617;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            height: 500px;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .chat-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-container::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        .chat-container::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+
+        .chat-message {
+            margin-bottom: 20px;
+            animation: slideIn 0.3s ease-out;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-message.right {
+            align-items: flex-end;
+        }
+
+        .chat-message.left {
+            align-items: flex-start;
+        }
+
+        .chat-message.center {
+            align-items: center;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .chat-message.right .message-header {
+            flex-direction: row-reverse;
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .avatar.reviewer {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        }
+
+        .avatar.coder {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .avatar.system {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+
+        .avatar.error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .sender-name {
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+
+        .message-content {
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.6;
+            max-width: 70%;
+        }
+
+        .chat-message.center .message-content {
+            max-width: 80%;
+            text-align: center;
+        }
+
+        .message-content.reviewer {
+            background: rgba(59, 130, 246, 0.1);
+            border-left: 3px solid #3b82f6;
+            color: #bfdbfe;
+        }
+
+        .message-content.coder {
+            background: rgba(16, 185, 129, 0.1);
+            border-left: 3px solid #10b981;
+            color: #a7f3d0;
+        }
+
+        .message-content.system {
+            background: rgba(245, 158, 11, 0.1);
+            border-left: 3px solid #f59e0b;
+            color: #fde68a;
+            font-style: italic;
+        }
+
+        .message-content.error {
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 3px solid #ef4444;
+            color: #fca5a5;
+        }
+
+        .message-content pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .message-content code {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .separator {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.85em;
+            margin: 10px 0;
+            padding: 5px 0;
+        }
+
+        .welcome-message {
+            text-align: center;
+            color: #64748b;
+            padding: 40px 20px;
+        }
+
+        .welcome-message h3 {
+            color: #94a3b8;
+            margin-bottom: 10px;
+        }
+
+        .setup-alert {
+            margin-top: 24px;
+            background: rgba(234, 179, 8, 0.1);
+            border: 1px solid rgba(234, 179, 8, 0.3);
+            border-radius: 8px;
+            padding: 24px;
+        }
+
+        .setup-alert h3 {
+            color: #fbbf24;
+            margin-bottom: 12px;
+            font-size: 1.1em;
+        }
+
+        .setup-alert p {
+            color: #cbd5e1;
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+
+        .setup-alert ol {
+            color: #cbd5e1;
+            margin-left: 20px;
+            line-height: 1.8;
+        }
+
+        .setup-alert code {
+            background: #1e293b;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <span>🤖</span>
+                AG2 Multi-Agent Chat
+            </h1>
+            <p>Watch your AutoGen agents collaborate in real-time</p>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <span class="status-text" id="statusText">Checking connection...</span>
+            <button class="refresh-btn" onclick="checkServer()" title="Refresh status">
+                🔄
+            </button>
+        </div>
+
+        <div class="controls">
+            <div class="form-group">
+                <label for="scriptSelect">Select AG2 Script</label>
+                <select id="scriptSelect" disabled>
+                    <option value="">-- Choose a .py file --</option>
+                </select>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-run" id="runBtn" onclick="runScript()" disabled>
+                    ▶️ Run Script
+                </button>
+                <button class="btn-stop" id="stopBtn" onclick="stopScript()" disabled>
+                    ⏹️ Stop
+                </button>
+                <button class="btn-clear" onclick="clearChat()">
+                    🔄 Clear Chat
+                </button>
+            </div>
+        </div>
+
+        <div class="chat-section">
+            <label>Agent Conversation</label>
+            <div class="chat-container" id="chatContainer">
+                <div class="welcome-message">
+                    <h3>👋 Welcome to AG2 Multi-Agent Chat</h3>
+                    <p>Select a script and click "Run Script" to watch your agents collaborate!</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="setup-alert" id="setupAlert" style="display: none;">
+            <h3>⚠️ Server Setup Required</h3>
+            <p>To use this interface, you need to run the Flask backend server. Follow these steps:</p>
+            <ol>
+                <li>Save the Python server code as <code>server.py</code></li>
+                <li>Install dependencies: <code>pip install flask flask-cors</code></li>
+                <li>Place your .py scripts in a folder named <code>scripts</code></li>
+                <li>Run: <code>python server.py</code></li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        let isRunning = false;
+        let serverConnected = false;
+        let messageBuffer = '';
+        let processedMessages = new Set();
+        let lastProcessedIndex = 0;
+        let autoScrollEnabled = true; // Track if we should auto-scroll
+
+        async function checkServer() {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const setupAlert = document.getElementById('setupAlert');
+            
+            indicator.className = 'status-indicator checking';
+            statusText.textContent = 'Checking connection...';
+
+            try {
+                const response = await fetch('http://localhost:5000/status');
+                if (response.ok) {
+                    indicator.className = 'status-indicator connected';
+                    statusText.textContent = 'Server: Connected';
+                    serverConnected = true;
+                    setupAlert.style.display = 'none';
+                    loadScripts();
+                } else {
+                    throw new Error('Server error');
+                }
+            } catch (error) {
+                indicator.className = 'status-indicator';
+                statusText.textContent = 'Server: Disconnected - Start the Flask server';
+                serverConnected = false;
+                setupAlert.style.display = 'block';
+                document.getElementById('scriptSelect').disabled = true;
+                document.getElementById('runBtn').disabled = true;
+            }
+        }
+
+        async function loadScripts() {
+            try {
+                const response = await fetch('http://localhost:5000/scripts');
+                const data = await response.json();
+                
+                const select = document.getElementById('scriptSelect');
+                select.innerHTML = '<option value="">-- Choose a .py file --</option>';
+                
+                data.scripts.forEach(script => {
+                    const option = document.createElement('option');
+                    option.value = script;
+                    option.textContent = script;
+                    select.appendChild(option);
+                });
+                
+                select.disabled = false;
+                document.getElementById('runBtn').disabled = false;
+            } catch (error) {
+                addSystemMessage('Error loading scripts: ' + error.message, 'error');
+            }
+        }
+
+        async function runScript() {
+            const select = document.getElementById('scriptSelect');
+            const scriptName = select.value;
+            
+            if (!scriptName) {
+                addSystemMessage('Please select a script first', 'error');
+                return;
+            }
+
+            isRunning = true;
+            document.getElementById('runBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            
+            addSystemMessage(`Starting ${scriptName}...`);
+            messageBuffer = '';
+            processedMessages.clear();
+            lastProcessedIndex = 0;
+            autoScrollEnabled = true; // Reset auto-scroll when starting a new script
+
+            try {
+                const response = await fetch('http://localhost:5000/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ script: scriptName })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const text = decoder.decode(value);
+                    messageBuffer += text;
+                    parseAndDisplayMessages();
+                }
+
+                // Parse any remaining messages
+                parseAndDisplayMessages();
+                addSystemMessage('✅ Execution completed');
+            } catch (error) {
+                // Only show actual errors, not connection close errors
+                if (!error.message.includes('network') && !error.message.includes('aborted')) {
+                    addSystemMessage('Error: ' + error.message, 'error');
+                } else {
+                    // Connection closed normally after script finished
+                    parseAndDisplayMessages();
+                    addSystemMessage('✅ Execution completed');
+                }
+            } finally {
+                isRunning = false;
+                document.getElementById('runBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+            }
+        }
+
+        function parseAndDisplayMessages() {
+            const fullText = messageBuffer;
+            
+            // Split by the standard AG2 separator pattern (multiple dashes)
+            const sections = fullText.split(/\n-{10,}\n/);
+            
+            sections.forEach((section, sectionIndex) => {
+                const lines = section.trim().split('\n');
+                if (lines.length === 0) return;
+                
+                // Look for agent message header (format: "agent (to other):")
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    
+                    // Match agent messages
+                    const agentMatch = line.match(/^(\w+)\s+\(to\s+\w+\):$/);
+                    if (agentMatch) {
+                        const sender = agentMatch[1];
+                        const messageId = `msg-${sender}-${sectionIndex}-${i}`;
+                        
+                        if (processedMessages.has(messageId)) {
+                            continue;
+                        }
+                        
+                        // Collect all content after this line
+                        let content = '';
+                        let captureStarted = false;
+                        
+                        for (let j = i + 1; j < lines.length; j++) {
+                            const contentLine = lines[j];
+                            
+                            // Skip certain system messages
+                            if (contentLine.includes('USING AUTO REPLY')) continue;
+                            if (contentLine.startsWith('INFO:') && !contentLine.includes('INFO:__main__:')) continue;
+                            if (contentLine.startsWith('ERROR:') && !contentLine.includes('ERROR:__main__:')) continue;
+                            if (contentLine.startsWith('WARNING:') && !contentLine.includes('WARNING:__main__:')) continue;
+                            
+                            // Stop if we hit another agent message header
+                            if (contentLine.match(/^\w+\s+\(to\s+\w+\):$/)) {
+                                break;
+                            }
+                            
+                            // Add the content
+                            if (contentLine.trim() || captureStarted) {
+                                content += contentLine + '\n';
+                                if (contentLine.trim()) captureStarted = true;
+                            }
+                        }
+                        
+                        // Clean up content and show if non-empty
+                        content = content.trim();
+                        if (content) {
+                            // Debug: log short messages to console
+                            if (content.length < 50) {
+                                console.log(`Short message from ${sender}:`, content);
+                            }
+                            addAgentMessage(sender, content);
+                            processedMessages.add(messageId);
+                        } else {
+                            console.log(`Empty content for ${sender} at section ${sectionIndex}`);
+                        }
+                        break;
+                    }
+                    
+                    // Handle TERMINATING message
+                    if (line.includes('TERMINATING RUN')) {
+                        const terminateId = 'terminate-msg';
+                        if (!processedMessages.has(terminateId)) {
+                            addSystemMessage('🛑 Conversation terminated (max turns reached)');
+                            processedMessages.add(terminateId);
+                        }
+                    }
+                    
+                    // Handle important INFO logs from __main__
+                    if (line.startsWith('INFO:__main__:')) {
+                        const logContent = line.replace('INFO:__main__:', '').trim();
+                        const logId = `log-${logContent.substring(0, 30)}`;
+                        if (!processedMessages.has(logId) && logContent) {
+                            addSystemMessage(logContent);
+                            processedMessages.add(logId);
+                        }
+                    }
+                }
+            });
+        }
+
+        function addAgentMessage(sender, content) {
+            const container = document.getElementById('chatContainer');
+            const welcomeMsg = container.querySelector('.welcome-message');
+            if (welcomeMsg) welcomeMsg.remove();
+
+            const messageDiv = document.createElement('div');
+            const senderLower = sender.toLowerCase();
+            
+            // Determine position and style based on sender
+            let position = 'left';
+            let avatarClass = 'coder';
+            
+            if (senderLower.includes('reviewer')) {
+                position = 'right';
+                avatarClass = 'reviewer';
+            } else if (senderLower.includes('coder')) {
+                position = 'left';
+                avatarClass = 'coder';
+            } else {
+                position = 'center';
+                avatarClass = 'system';
+            }
+            
+            messageDiv.className = `chat-message ${position}`;
+            const avatarText = sender.charAt(0).toUpperCase();
+
+            // Format code blocks
+            let formattedContent = content;
+            if (content.includes('```')) {
+                formattedContent = content.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+            }
+
+            messageDiv.innerHTML = `
+                <div class="message-header">
+                    <div class="avatar ${avatarClass}">${avatarText}</div>
+                    <span class="sender-name">${sender}</span>
+                </div>
+                <div class="message-content ${avatarClass}">${formattedContent.replace(/\n/g, '<br>')}</div>
+            `;
+
+            container.appendChild(messageDiv);
+            
+            // Only scroll to bottom if user is already at the bottom
+            if (autoScrollEnabled) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        function addSystemMessage(text, type = 'system') {
+            const container = document.getElementById('chatContainer');
+            const welcomeMsg = container.querySelector('.welcome-message');
+            if (welcomeMsg) welcomeMsg.remove();
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message center';
+
+            const icon = type === 'error' ? '❌' : '⚙️';
+
+            messageDiv.innerHTML = `
+                <div class="message-header">
+                    <div class="avatar ${type}">${icon}</div>
+                    <span class="sender-name">System</span>
+                </div>
+                <div class="message-content ${type}">${text}</div>
+            `;
+
+            container.appendChild(messageDiv);
+            
+            // Only scroll to bottom if user is already at the bottom
+            if (autoScrollEnabled) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        async function stopScript() {
+            try {
+                await fetch('http://localhost:5000/stop', { method: 'POST' });
+                addSystemMessage('Stop signal sent');
+            } catch (error) {
+                addSystemMessage('Error stopping script: ' + error.message, 'error');
+            }
+        }
+
+        function clearChat() {
+            const container = document.getElementById('chatContainer');
+            container.innerHTML = `
+                <div class="welcome-message">
+                    <h3>👋 Welcome to AG2 Multi-Agent Chat</h3>
+                    <p>Select a script and click "Run Script" to watch your agents collaborate!</p>
+                </div>
+            `;
+            messageBuffer = '';
+            processedMessages.clear();
+            lastProcessedIndex = 0;
+            autoScrollEnabled = true; // Reset auto-scroll when clearing chat
+        }
+
+        // Check server on load
+        checkServer();
+
+        // Add scroll event listener to track user scroll behavior
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatContainer = document.getElementById('chatContainer');
+            
+            chatContainer.addEventListener('scroll', function() {
+                // If user scrolls up, disable auto-scroll
+                const isAtBottom = chatContainer.scrollHeight - chatContainer.scrollTop <= chatContainer.clientHeight + 50;
+                
+                if (isAtBottom) {
+                    autoScrollEnabled = true;
+                } else {
+                    autoScrollEnabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

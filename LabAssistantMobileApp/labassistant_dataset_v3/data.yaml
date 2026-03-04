@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 5
+names: ['arduino-nano-ble-sense', 'arduino-nano-iot-33', 'esp32-dev', 'led-diode', 'raspberry-pi-pico-w']
+
+roboflow:
+  workspace: talosdatasets
+  project: labassistant-detection-gjblj
+  version: 2
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/talosdatasets/labassistant-detection-gjblj/dataset/2

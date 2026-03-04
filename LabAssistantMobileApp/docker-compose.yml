@@ -1,0 +1,13 @@
+services:
+  labassistant:
+    build: .
+    container_name: LabAssistant
+    env_file:
+      - .env
+    environment:
+      - TZ=Europe/Athens
+    ports:
+      - "127.0.0.1:6999:6999"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped

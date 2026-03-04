@@ -1,0 +1,1756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>LabAssistant</title>
+    
+    <link rel="manifest" href="/static/manifest.json">
+    
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
+    <link rel="apple-touch-icon" href="/static/logo.svg">
+    
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="LabAssistant">
+    <meta name="description" content="Real-time AI detection and analysis of electronic components">
+    
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+
+    <style>
+        :root { 
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --accent: #06b6d4;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg: #0a0a0a;
+            --surface: rgba(25, 25, 30, 0.95);
+            --glass: rgba(255, 255, 255, 0.05);
+            --glass-light: rgba(255, 255, 255, 0.08);
+            --glass-medium: rgba(255, 255, 255, 0.12);
+            --border: rgba(255, 255, 255, 0.15);
+            --border-strong: rgba(255, 255, 255, 0.25);
+            --text-primary: #ffffff;
+            --text-secondary: #9ca3af;
+            --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --shadow-glass-strong: 0 16px 48px rgba(0, 0, 0, 0.6);
+
+            --ui-max: 640px;
+        }
+        
+        .liquid-glass {
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.1) 0%,
+                rgba(255, 255, 255, 0.05) 100%
+            );
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.37),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+        }
+        
+        .liquid-glass-strong {
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.15) 0%,
+                rgba(255, 255, 255, 0.08) 100%
+            );
+            backdrop-filter: blur(60px) saturate(200%);
+            -webkit-backdrop-filter: blur(60px) saturate(200%);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 
+                0 16px 48px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+        }
+        
+        .liquid-glass-subtle {
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.06) 0%,
+                rgba(255, 255, 255, 0.03) 100%
+            );
+            backdrop-filter: blur(30px) saturate(160%);
+            -webkit-backdrop-filter: blur(30px) saturate(160%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 
+                0 4px 16px rgba(0, 0, 0, 0.25),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+        
+        * { box-sizing: border-box; }
+        
+        body { 
+            margin: 0; 
+            background: var(--bg); 
+            color: var(--text-primary); 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; 
+            height: 100dvh; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+            user-select: none; 
+            -webkit-touch-callout: none; 
+        }
+
+        #cam-layer { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            z-index: 0; 
+        }
+        
+        video, canvas { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+        }
+
+        #cam-layer::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                180deg,
+                rgba(0,0,0,0.4) 0%,
+                transparent 20%,
+                transparent 80%,
+                rgba(0,0,0,0.6) 100%
+            );
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #ui-layer { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            z-index: 10; 
+            pointer-events: none; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between; 
+        }
+
+        #top-bar { 
+            padding: max(20px, env(safe-area-inset-top) + 10px) 20px 20px;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            width: min(var(--ui-max), 100%);
+            margin-inline: auto;
+        }
+
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .app-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: clamp(15px, 4vw, 18px);
+            letter-spacing: -0.5px;
+        }
+
+        .app-icon {
+            width: 36px;
+            height: 36px;
+            background: transparent;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .app-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .info-btn {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-primary);
+            font-size: 20px;
+        }
+
+        .info-btn:active {
+            transform: scale(0.95);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.08));
+        }
+
+        .status-pill {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            padding: 8px 14px;
+            border-radius: 100px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .status-pill.recording {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(220, 38, 38, 0.15));
+            border-color: rgba(239, 68, 68, 0.4);
+            animation: pulse-recording 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse-recording {
+            0%, 100% { box-shadow: 0 8px 32px rgba(239, 68, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15); }
+            50% { box-shadow: 0 8px 32px rgba(239, 68, 68, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--text-secondary);
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .status-dot.active {
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .status-dot.rec {
+            background: var(--danger);
+            box-shadow: 0 0 12px var(--danger);
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .detection-badge {
+            padding: 12px 18px;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(-10px) scale(0.95);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+
+        .detection-badge.visible {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        #bottom-controls {
+            padding: 20px max(20px, env(safe-area-inset-bottom) + 20px);
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+            width: min(var(--ui-max), 100%);
+            margin-inline: auto;
+        }
+
+        .mode-selector {
+            width: 100%;
+            display: flex;
+            gap: 12px;
+            padding: 6px;
+            border-radius: 18px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 12px 16px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+            backdrop-filter: blur(30px) saturate(160%);
+            -webkit-backdrop-filter: blur(30px) saturate(160%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            text-align: center;
+        }
+
+        .mode-btn:active {
+            transform: scale(0.96);
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(79, 70, 229, 0.15));
+            border-color: rgba(99, 102, 241, 0.4);
+            color: var(--text-primary);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+        }
+
+        .mode-icon {
+            font-size: 24px;
+            line-height: 1;
+        }
+
+        .mode-label {
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .action-bar {
+            width: 100%;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .voice-btn {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 24px;
+            color: var(--text-primary);
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        .voice-btn:active {
+            transform: scale(0.92);
+        }
+
+        .voice-btn.active {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(220, 38, 38, 0.2));
+            border-color: rgba(239, 68, 68, 0.5);
+            box-shadow: 0 8px 32px rgba(239, 68, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            animation: voice-pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes voice-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        /* Hold-to-talk visual hint */
+        .voice-btn::after {
+            content: 'Hold to Talk';
+            position: absolute;
+            bottom: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        
+        .voice-btn:hover::after {
+            opacity: 1;
+        }
+
+        .scan-btn {
+            flex: 1;
+            max-width: 280px;
+            height: 56px;
+            border-radius: 28px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            color: var(--text-primary);
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 
+                0 12px 40px rgba(99, 102, 241, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .scan-btn:active {
+            transform: scale(0.96);
+            box-shadow: 
+                0 8px 24px rgba(99, 102, 241, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+        }
+
+        .scan-btn:hover {
+            box-shadow: 
+                0 16px 48px rgba(99, 102, 241, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        }
+
+        #result-sheet {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-height: 80vh;
+            background: var(--surface);
+            backdrop-filter: blur(60px) saturate(200%);
+            -webkit-backdrop-filter: blur(60px) saturate(200%);
+            border-radius: 28px 28px 0 0;
+            border: 1px solid var(--border-strong);
+            border-bottom: none;
+            box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.6);
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            pointer-events: auto;
+        }
+
+        #result-sheet.open {
+            transform: translateY(0);
+        }
+
+        .sheet-handle {
+            width: 40px;
+            height: 5px;
+            background: var(--border);
+            border-radius: 100px;
+            margin: 12px auto 8px;
+            cursor: grab;
+        }
+
+        .sheet-header {
+            padding: 12px 24px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .sheet-title {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .close-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--glass-light);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .close-btn:active {
+            transform: scale(0.9);
+            background: var(--glass-medium);
+        }
+
+        .sheet-content {
+            padding: 20px 24px max(20px, env(safe-area-inset-bottom) + 20px);
+            overflow-y: auto;
+            flex: 1;
+            line-height: 1.6;
+            overflow-x: hidden;
+            max-width: 100%;
+        }
+
+        .sheet-content h2, .sheet-content h3 {
+            margin: 24px 0 12px;
+            color: var(--text-primary);
+        }
+
+        .sheet-content h2:first-child, .sheet-content h3:first-child {
+            margin-top: 0;
+        }
+
+        .sheet-content p, .sheet-content ul, .sheet-content ol {
+            margin: 12px 0;
+            color: var(--text-secondary);
+        }
+
+        .sheet-content ul, .sheet-content ol {
+            padding-left: 20px;
+        }
+
+        .sheet-content li {
+            margin: 8px 0;
+        }
+
+        .sheet-content b, .sheet-content strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .sheet-content code {
+            background: var(--glass);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.9em;
+            color: var(--accent);
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
+        .sheet-content pre {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin: 16px 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .sheet-content pre code {
+            background: none;
+            padding: 0;
+            color: var(--text-primary);
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre;
+        }
+
+        .sheet-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            background: var(--glass);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            max-width: 100%;
+        }
+
+        .sheet-content table th {
+            background: var(--glass-medium);
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border);
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
+        .sheet-content table td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-secondary);
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
+        .sheet-content table tr:last-child td {
+            border-bottom: none;
+        }
+
+        #start-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            flex-direction: column;
+            gap: 24px;
+            padding: 40px;
+        }
+
+        .start-content {
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .start-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .start-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+
+        .start-desc {
+            color: var(--text-secondary);
+            font-size: 16px;
+            line-height: 1.5;
+            margin-bottom: 32px;
+        }
+
+        .start-btn {
+            width: 100%;
+            max-width: 280px;
+            height: 56px;
+            border-radius: 28px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            color: var(--text-primary);
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 12px 40px rgba(99, 102, 241, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .start-btn:active {
+            transform: scale(0.96);
+        }
+
+        #info-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 150;
+            padding: 20px;
+        }
+
+        #info-modal.open {
+            display: flex;
+        }
+
+        .info-content {
+            background: var(--surface);
+            backdrop-filter: blur(60px) saturate(200%);
+            -webkit-backdrop-filter: blur(60px) saturate(200%);
+            border: 1px solid var(--border-strong);
+            border-radius: 24px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+        }
+
+        .info-header {
+            padding: 24px 24px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            background: var(--surface);
+            backdrop-filter: blur(60px) saturate(200%);
+            -webkit-backdrop-filter: blur(60px) saturate(200%);
+            z-index: 1;
+        }
+
+        .info-title {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .info-body {
+            padding: 24px;
+            line-height: 1.6;
+        }
+
+        .info-body h3 {
+            margin: 24px 0 12px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .info-body h3:first-child {
+            margin-top: 0;
+        }
+
+        .info-body p {
+            margin: 12px 0;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .info-body ul {
+            margin: 12px 0;
+            padding-left: 20px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .info-body li {
+            margin: 8px 0;
+        }
+
+        .info-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            background: var(--glass-medium);
+            border: 1px solid var(--border);
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        /* 📱 Mobile: prevent horizontal scrolling in responses */
+        @media (max-width: 520px) {
+            .sheet-content {
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+
+            /* Code blocks: wrap on mobile to avoid horizontal scroll */
+            .sheet-content pre {
+                overflow-x: hidden;
+                white-space: pre-wrap;
+                word-break: break-word;
+                overflow-wrap: anywhere;
+            }
+            .sheet-content pre code {
+                font-size: 12px;
+                white-space: pre-wrap;
+                word-break: break-word;
+                overflow-wrap: anywhere;
+            }
+
+            /* Tables: force wrapping instead of horizontal scroll */
+            .sheet-content table {
+                table-layout: fixed;
+            }
+            .sheet-content table th,
+            .sheet-content table td {
+                padding: 10px;
+            }
+        }
+
+    </style>
+</head>
+<body>
+    <div id="cam-layer">
+        <video id="vid" autoplay playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <canvas id="ai-canvas" style="display:none;" width="640" height="640"></canvas>
+        <canvas id="cap-canvas" style="display:none;"></canvas>
+    </div>
+
+    <div id="ui-layer">
+        <div id="top-bar">
+            <div class="app-header">
+                <div class="app-title">
+                    <div class="app-icon">
+                        <img src="/static/logo.svg" alt="LabAssistant">
+                    </div>
+                    <span>LabAssistant</span>
+                </div>
+                <button class="info-btn" onclick="openInfo()">ⓘ</button>
+            </div>
+            
+            <div class="status-pill" id="status-pill">
+                <div class="status-dot" id="status-dot"></div>
+                <span id="status-text">Initializing...</span>
+            </div>
+            
+            <div class="detection-badge liquid-glass" id="detection-badge">
+                <div id="detection-label">NO DETECTION</div>
+            </div>
+        </div>
+
+        <div id="bottom-controls">
+            <div class="mode-selector liquid-glass-subtle">
+                <button class="mode-btn active" data-mode="identify" onclick="setMode('identify', event)">
+                    <div class="mode-icon">🔍</div>
+                    <div class="mode-label">Identify</div>
+                </button>
+                <button class="mode-btn" data-mode="connect" onclick="setMode('connect', event)">
+                    <div class="mode-icon">⚡</div>
+                    <div class="mode-label">Connect & Code</div>
+                </button>
+            </div>
+
+            <div class="action-bar">
+                <button class="voice-btn" id="voice-btn">🎤</button>
+                <button class="scan-btn" onclick="performScan('')">
+                    <span>📸</span>
+                    <span>Analyze Component</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="result-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+            <div class="sheet-title">Analysis Result</div>
+            <button class="close-btn" onclick="closeSheet()">✕</button>
+        </div>
+        <div class="sheet-content" id="result-content">
+            <p>Analysis will appear here...</p>
+        </div>
+    </div>
+
+    <div id="start-overlay">
+        <div class="start-content">
+            <div class="start-icon">📱</div>
+            <div class="start-title">LabAssistant</div>
+            <div class="start-desc">
+                Point your camera at electronic components for instant AI-powered identification and wiring guidance. Voice commands enabled!
+            </div>
+            <button class="start-btn" onclick="initSystem()">Enable Camera & Microphone</button>
+        </div>
+    </div>
+
+    <div id="info-modal" onclick="closeInfo(event)">
+        <div class="info-content" onclick="event.stopPropagation()">
+            <div class="info-header">
+                <div class="info-title">About LabAssistant</div>
+                <button class="close-btn" onclick="closeInfo()">✕</button>
+            </div>
+            <div class="info-body">
+                <h3>🎯 How It Works</h3>
+                <p>LabAssistant uses on-device AI to instantly recognize electronic components in real-time. Just point your camera at any Arduino, ESP32, Raspberry Pi, or sensor module.</p>
+                
+                <h3>🔍 Features</h3>
+                <ul>
+                    <li><strong>Identify Mode:</strong> Get detailed specs, pinouts, and datasheets</li>
+                    <li><strong>Connect & Code:</strong> Receive wiring diagrams and ready-to-use firmware</li>
+                    <li><strong>Voice Commands:</strong> Ask specific questions about your components</li>
+                </ul>
+                
+                <h3>🎤 Voice Commands</h3>
+                <p><strong>Hold-to-Talk Mode:</strong></p>
+                <ul>
+                    <li>Press and hold the 🎤 button</li>
+                    <li>Speak your question</li>
+                    <li>Release to instantly analyze</li>
+                    <li>Microphone permission is granted when you start the app</li>
+                </ul>
+                
+                <h3>🏷️ Supported Components</h3>
+                <div>
+                    <span class="info-badge">Arduino Nano</span>
+                    <span class="info-badge">ESP32</span>
+                    <span class="info-badge">Raspberry Pi Pico</span>
+                    <span class="info-badge">LEDs</span>
+                </div>
+                
+                <h3>💡 Tips</h3>
+                <ul>
+                    <li>Ensure good lighting for best results</li>
+                    <li>Hold camera steady for detection</li>
+                    <li>Use voice for specific questions</li>
+                    <li>Works offline after initial load</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // 🛡️ IPHONE CRASH FIX - MEMORY MANAGEMENT
+        // ============================================
+        
+        const MODEL_PATH = '/static/best.onnx';
+        
+        // 🔥 UPDATE: Matching the labels from the OLD file exactly
+        const LABELS = ['arduino-nano-ble-sense', 'arduino-nano-iot-33', 'esp32-dev', 'led-diode', 'raspberry-pi-pico-w'];
+        
+        // DOM Elements
+        const vid = document.getElementById('vid');
+        const overlay = document.getElementById('overlay');
+        const ctx = overlay.getContext('2d', { 
+            willReadFrequently: false,  // Performance hint
+            alpha: true 
+        });
+        const aiCanvas = document.getElementById('ai-canvas');
+        const aiCtx = aiCanvas.getContext('2d', { 
+            willReadFrequently: true,   // We need to read pixels
+            alpha: false 
+        });
+        const sheet = document.getElementById('result-sheet');
+        const resultContent = document.getElementById('result-content');
+        const statusText = document.getElementById('status-text');
+        const statusDot = document.getElementById('status-dot');
+        const statusPill = document.getElementById('status-pill');
+        const detectionBadge = document.getElementById('detection-badge');
+        const detectionLabel = document.getElementById('detection-label');
+        const startOverlay = document.getElementById('start-overlay');
+        const voiceBtn = document.getElementById('voice-btn');
+        
+        // State
+        let session = null;
+        let isDetecting = false;
+        let isSheetOpen = false;
+        let isMicActive = false;
+        let currentMode = 'identify';
+        let bestLabel = "Unknown";
+        let recognizer = null;
+        let detectionLoopId = null;
+        let cameraStream = null;
+        let frameCount = 0; // Track frames for skipping
+        let lowPowerMode = false; // Emergency low power mode
+
+// Platform
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+
+// ============================================
+// 💾 STATE PERSISTENCE (prevents losing progress if iOS reloads)
+// ============================================
+const STATE_KEY = 'labassistant_state_v1';
+
+function saveState(extra = {}) {
+    try {
+        const state = {
+            currentMode,
+            isSheetOpen,
+            resultHTML: resultContent.innerHTML,
+            status: statusText.innerText,
+            bestLabel,
+            ts: Date.now(),
+            ...extra
+        };
+        localStorage.setItem(STATE_KEY, JSON.stringify(state));
+    } catch (e) {
+        // ignore (storage can be full / blocked)
+    }
+}
+
+function restoreState() {
+    try {
+        const raw = localStorage.getItem(STATE_KEY);
+        if (!raw) return;
+        const s = JSON.parse(raw);
+
+        if (s.currentMode) {
+            currentMode = s.currentMode;
+            document.querySelectorAll('.mode-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === currentMode);
+            });
+        }
+
+        if (s.resultHTML) {
+            resultContent.innerHTML = s.resultHTML;
+        }
+
+        if (s.isSheetOpen && s.resultHTML) {
+            sheet.classList.add('open');
+            isSheetOpen = true;
+        }
+
+        // Avoid restoring "Analyzing..." forever after an unexpected reload
+        const st = (s.status && s.status !== 'Analyzing...') ? s.status : 'Ready';
+        statusText.innerText = st;
+
+    } catch (e) {
+        console.warn('State restore failed:', e);
+    }
+}
+
+// Restore as early as possible
+restoreState();
+
+// Save state on lifecycle transitions
+window.addEventListener('pagehide', () => saveState({ reason: 'pagehide' }));
+window.addEventListener('beforeunload', () => saveState({ reason: 'beforeunload' }));
+
+// ============================================
+// 🎛️ STABLE DETECTION SCHEDULER (prevents runaway timers on iOS)
+// ============================================
+let detectionTimer = null;
+const DETECTION_INTERVAL_MS = IS_IOS ? 700 : 350; // iOS needs more breathing room
+        if (IS_IOS) { lowPowerMode = true; console.log('🔋 iOS: enabling low power detection defaults'); }
+
+function stopDetectionLoop() {
+    if (detectionTimer) {
+        clearTimeout(detectionTimer);
+        detectionTimer = null;
+    }
+}
+
+function startDetectionLoop() {
+    if (!session || detectionTimer) return;
+    scheduleNextDetection(0);
+}
+
+function scheduleNextDetection(delay = DETECTION_INTERVAL_MS) {
+    stopDetectionLoop();
+    detectionTimer = setTimeout(detectOnce, delay);
+}
+
+async function detectOnce() {
+    detectionTimer = null;
+    if (!session) return;
+    if (detectionPaused || isSheetOpen) {
+        scheduleNextDetection();
+        return;
+    }
+    if (isDetecting) {
+        scheduleNextDetection();
+        return;
+    }
+
+    // Optional frame skipping
+    frameCount++;
+    const skipRate = lowPowerMode ? 3 : 2;
+    if (frameCount % skipRate !== 0) {
+        scheduleNextDetection(lowPowerMode ? 350 : 200);
+        return;
+    }
+
+    isDetecting = true;
+    try {
+        aiCtx.drawImage(vid, 0, 0, 640, 640);
+        let imageData = aiCtx.getImageData(0, 0, 640, 640);
+        let data = imageData.data;
+
+        for (let i = 0; i < 640 * 640; i++) {
+            FLOAT_BUFFER[i] = data[i * 4] / 255.0;
+            FLOAT_BUFFER[640 * 640 + i] = data[i * 4 + 1] / 255.0;
+            FLOAT_BUFFER[2 * 640 * 640 + i] = data[i * 4 + 2] / 255.0;
+        }
+
+        let tensor = new ort.Tensor('float32', FLOAT_BUFFER, [1, 3, 640, 640]);
+        let results = await session.run({ images: tensor });
+        drawBoxes(results.output0.data);
+
+        // Help GC (if supported)
+        if (tensor.dispose) tensor.dispose();
+                tensor = null;
+                results = null;
+                data = null;
+                imageData = null;
+
+    } catch (e) {
+        console.error('Detection error:', e);
+    } finally {
+        isDetecting = false;
+        scheduleNextDetection();
+    }
+}
+        
+        // 🔥 FIX 1: Pre-allocate buffer (avoid repeated allocations)
+        const FLOAT_BUFFER = new Float32Array(3 * 640 * 640);
+        
+        // 🔥 FIX 2: Aggressive memory monitoring for iOS
+        let lastMemoryWarning = 0;
+        let memoryWarningCount = 0;
+        let detectionPaused = false;
+        
+        function checkMemory() {
+            if (performance.memory) {
+                const usedMB = performance.memory.usedJSHeapSize / 1048576;
+                const limitMB = performance.memory.jsHeapSizeLimit / 1048576;
+                const percentUsed = (usedMB / limitMB) * 100;
+                
+                // More aggressive thresholds for iOS
+                if (percentUsed > 75 && Date.now() - lastMemoryWarning > 10000) {
+                    console.warn(`⚠️ Memory usage high: ${usedMB.toFixed(0)}MB / ${limitMB.toFixed(0)}MB (${percentUsed.toFixed(1)}%)`);
+                    lastMemoryWarning = Date.now();
+                    memoryWarningCount++;
+                    
+                    // Force garbage collection hint
+                    if (window.gc) window.gc();
+                    
+                    // If memory is critically high, pause detection temporarily
+                    if (percentUsed > 85) {
+                        console.error('🚨 CRITICAL: Memory at 85%+ - pausing detection for 5 seconds');
+                        detectionPaused = true;
+                        statusText.innerText = "⚠️ High Memory - Cooling Down";
+                        
+                        setTimeout(() => {
+                            detectionPaused = false;
+                            statusText.innerText = "Ready";
+                            console.log('✅ Detection resumed');
+                        }, 5000);
+                    }
+                }
+                
+                // If we've had 3+ memory warnings, recommend restart
+                if (memoryWarningCount >= 3) {
+                    console.error('🚨 CRITICAL: Multiple memory warnings - app restart recommended');
+                    statusText.innerText = "⚠️ Restart App Recommended";
+                }
+            }
+        }
+        
+        // 🔥 FIX 3: Comprehensive cleanup function
+        function cleanup() {
+            console.log('🧹 Cleaning up resources...');
+            saveState({ reason: 'cleanup' });
+            stopDetectionLoop();
+            
+            // Log current memory state before cleanup
+            if (performance.memory) {
+                const usedMB = performance.memory.usedJSHeapSize / 1048576;
+                console.log(`📊 Memory before cleanup: ${usedMB.toFixed(0)}MB`);
+            }
+            
+            // Stop detection loop
+            if (detectionLoopId) {
+                cancelAnimationFrame(detectionLoopId);
+                clearTimeout(detectionLoopId);
+                detectionLoopId = null;
+            }
+            
+            // Stop camera
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => {
+                    track.stop();
+                    console.log('  ✓ Stopped track:', track.kind);
+                });
+                cameraStream = null;
+            }
+            
+            // Clear video
+            if (vid.srcObject) {
+                vid.srcObject = null;
+            }
+            
+            // Clear canvases
+            try {
+                ctx.clearRect(0, 0, overlay.width, overlay.height);
+                aiCtx.clearRect(0, 0, 640, 640);
+            } catch(e) {
+                console.warn('Canvas cleanup error:', e);
+            }
+            
+            // Dispose session
+            if (session) {
+                try {
+                    // session.dispose?.(); // ONNX Runtime might not have dispose
+                    session = null;
+                } catch(e) {
+                    console.warn('Session disposal error:', e);
+                }
+            }
+            
+            isDetecting = false;
+            isSheetOpen = false;
+            
+            // Force GC if available
+            if (window.gc) {
+                window.gc();
+                console.log('  ✓ Forced garbage collection');
+            }
+            
+            // Log memory state after cleanup
+            if (performance.memory) {
+                setTimeout(() => {
+                    const usedMB = performance.memory.usedJSHeapSize / 1048576;
+                    console.log(`📊 Memory after cleanup: ${usedMB.toFixed(0)}MB`);
+                }, 100);
+            }
+        }
+        
+        // 🔥 FIX 4: Handle page visibility changes
+        
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        console.log('📱 App backgrounded - pausing detection');
+        stopDetectionLoop();
+        try { vid.pause(); } catch(e) {}
+        saveState({ reason: 'hidden' });
+    } else {
+        console.log('📱 App foregrounded - resuming detection');
+        try { vid.play(); } catch(e) {}
+        checkMemory();
+        startDetectionLoop();
+    }
+});
+
+// 🔥 NEW: Global error handler for crash recovery
+        window.addEventListener('error', (e) => {
+            console.error('💥 Global error caught:', e.message, e.filename, e.lineno);
+            
+            // If it's a memory-related error, try to recover
+            if (e.message.includes('memory') || e.message.includes('allocation')) {
+                console.error('🚨 Memory error detected - attempting recovery');
+                detectionPaused = true;
+                statusText.innerText = "⚠️ Memory Error - Recovering";
+                
+                // Stop everything
+                if (detectionLoopId) {
+                    clearTimeout(detectionLoopId);
+                    cancelAnimationFrame(detectionLoopId);
+                    detectionLoopId = null;
+                }
+                
+                // Force cleanup
+                if (window.gc) window.gc();
+                
+                // Resume after 5 seconds
+                setTimeout(() => {
+                    console.log('🔄 Attempting to resume detection');
+                    detectionPaused = false;
+                    statusText.innerText = "Ready";
+                    if (session) {
+                        startDetectionLoop();
+                    }
+                }, 5000);
+            }
+        });
+        
+        // 🔥 NEW: Unhandled promise rejection handler
+        window.addEventListener('unhandledrejection', (e) => {
+            console.error('💥 Unhandled promise rejection:', e.reason);
+            if (e.reason && e.reason.message) {
+                console.error('   Message:', e.reason.message);
+            }
+        });
+        
+        // 🔥 FIX 5: Handle low memory warnings (iOS specific)
+        window.addEventListener('pagehide', () => { stopDetectionLoop(); saveState({ reason: 'pagehide' }); });
+        window.addEventListener('beforeunload', () => { saveState({ reason: 'beforeunload' }); cleanup(); });
+        
+        // Voice Recognition Setup
+        let micPermissionGranted = false;
+        let isHolding = false;
+        let recordedText = "";
+        let shouldAnalyzeOnEnd = false; // Track if we should analyze when recording ends
+        
+        if ('webkitSpeechRecognition' in window) {
+            recognizer = new webkitSpeechRecognition();
+            recognizer.continuous = false;
+            recognizer.interimResults = true;
+            
+            recognizer.onstart = () => {
+                isMicActive = true;
+                voiceBtn.classList.add('active');
+                statusPill.classList.add('recording');
+                statusDot.classList.remove('active');
+                statusDot.classList.add('rec');
+                statusText.innerText = "Listening...";
+                micPermissionGranted = true;
+            };
+            
+            recognizer.onend = () => {
+                console.log('🎤 Recording ended. shouldAnalyzeOnEnd:', shouldAnalyzeOnEnd, 'recordedText:', recordedText);
+                
+                isMicActive = false;
+                voiceBtn.classList.remove('active');
+                statusPill.classList.remove('recording');
+                statusDot.classList.remove('rec');
+                statusDot.classList.add('active');
+                
+                // If we should analyze (user released the hold button), trigger analysis
+                if (shouldAnalyzeOnEnd && recordedText) {
+                    console.log('✅ Triggering analysis with text:', recordedText);
+                    shouldAnalyzeOnEnd = false;
+                    performScan(recordedText);
+                    recordedText = "";
+                } else {
+                    console.log('⚠️ No analysis triggered. shouldAnalyze:', shouldAnalyzeOnEnd, 'text:', recordedText);
+                    shouldAnalyzeOnEnd = false;
+                    statusText.innerText = recordedText || "Ready";
+                }
+            };
+            
+            recognizer.onresult = (e) => {
+                let txt = "";
+                for (let i = e.resultIndex; i < e.results.length; i++) {
+                    txt += e.results[i][0].transcript;
+                }
+                recordedText = txt;
+                statusText.innerText = txt;
+            };
+            
+            recognizer.onerror = (e) => {
+                console.warn("Speech recognition error:", e.error);
+                if (e.error === 'not-allowed') {
+                    alert("Microphone access denied. Please enable microphone permissions in your browser settings.");
+                    micPermissionGranted = false;
+                }
+            };
+        }
+
+        function openInfo() {
+            document.getElementById('info-modal').classList.add('open');
+        }
+
+        function closeInfo(event) {
+            if (!event || event.target.id === 'info-modal') {
+                document.getElementById('info-modal').classList.remove('open');
+            }
+        }
+
+        async function initSystem() {
+            startOverlay.style.display = 'none';
+            try {
+                // 🔥 Detect if iOS for extra conservative settings
+                const isIOS = IS_IOS;
+                
+                // 🔥 FIX 6: Reduced resolution for iPhone (even more conservative for older iPhones)
+                const cameraConstraints = isIOS ? {
+                    video: { 
+                        facingMode: "environment", 
+                        width: { ideal: 960 },    // Even lower for iOS
+                        height: { ideal: 540 }     // Even lower for iOS
+                    },
+                    audio: true
+                } : {
+                    video: { 
+                        facingMode: "environment", 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: true
+                };
+                
+                console.log(isIOS ? '📱 iOS detected - using conservative camera settings' : '🖥️ Non-iOS detected - using standard settings');
+                
+                // 🔥 Request BOTH camera AND microphone permissions at startup
+                const stream = await navigator.mediaDevices.getUserMedia(cameraConstraints);
+                
+                // Stop audio track immediately (we only needed permission)
+                stream.getAudioTracks().forEach(track => track.stop());
+                
+                // Keep only video stream
+                const videoStream = new MediaStream(stream.getVideoTracks());
+                cameraStream = videoStream;
+                vid.srcObject = videoStream;
+                vid.play();
+                
+                vid.onloadedmetadata = () => {
+                    console.log(`📹 Video dimensions: ${vid.videoWidth}x${vid.videoHeight}`);
+                    overlay.width = window.innerWidth;
+                    overlay.height = window.innerHeight;
+                    loadAI();
+                    
+                    // Mark mic as ready since we got permission
+                    micPermissionGranted = true;
+                    console.log('✅ Microphone permission granted at startup');
+                };
+            } catch (e) { 
+                alert("Camera/Microphone Error: " + e.message); 
+                startOverlay.style.display = 'flex';
+            }
+        }
+
+        async function loadAI() {
+            try {
+                statusText.innerText = "Loading AI...";
+                
+                // 🔥 FIX 7: iPhone-optimized ONNX settings
+                ort.env.wasm.numThreads = 1;  // Single thread for stability
+                ort.env.wasm.proxy = false;
+                ort.env.wasm.simd = true;     // Enable SIMD if available
+                
+                session = await ort.InferenceSession.create(MODEL_PATH, { 
+                    executionProviders: ['wasm'],  // Stick to WASM (WebGPU can crash on iOS)
+                    graphOptimizationLevel: 'all',
+                    enableCpuMemArena: false,      // Reduce memory pooling
+                    enableMemPattern: false        // Disable memory optimization patterns
+                });
+
+                statusText.innerText = "Ready";
+                statusDot.classList.add('active');
+                startDetectionLoop();
+                
+                // 🔥 FIX 8: Monitor memory every 15 seconds (more frequent for iOS)
+                setInterval(checkMemory, 15000);
+                
+                // 🔥 NEW: Force GC every 60 seconds to prevent buildup
+                setInterval(() => {
+                    if (window.gc) {
+                        console.log('🧹 Periodic garbage collection');
+                        window.gc();
+                    }
+                }, 60000);
+                
+            } catch (e) { 
+                statusText.innerText = "AI Failed"; 
+                alert("AI Error: " + e.message);
+            }
+        }
+
+        function detectLoop() {
+            if (!session) return;
+            
+            // 🔥 Emergency bailout if detection is paused due to memory issues
+            if (detectionPaused) {
+                detectionLoopId = setTimeout(detectLoop, 1000);
+                return;
+            }
+            
+            // 🔥 Low power mode: Skip even more frames (every 3rd frame instead of every 2nd)
+            frameCount++;
+            const skipRate = lowPowerMode ? 3 : 2;
+            if (frameCount % skipRate !== 0) {
+                detectionLoopId = setTimeout(detectLoop, lowPowerMode ? 200 : 150);
+                return;
+            }
+            
+            // 🔥 FIX 9: Adaptive interval based on power mode
+            const detectionInterval = lowPowerMode ? 500 : 300;
+            
+            detectionLoopId = setTimeout(async () => {
+                if (isDetecting || isSheetOpen) { 
+                    detectionLoopId = requestAnimationFrame(detectLoop); 
+                    return; 
+                }
+                
+                isDetecting = true;
+                
+                try {
+                    // Draw video frame
+                    aiCtx.drawImage(vid, 0, 0, 640, 640);
+                    let imageData = aiCtx.getImageData(0, 0, 640, 640);
+                    let data = imageData.data;
+                    
+                    // Convert to float tensor (reuse pre-allocated buffer)
+                    for (let i = 0; i < 640 * 640; i++) {
+                        FLOAT_BUFFER[i] = data[i * 4] / 255.0; 
+                        FLOAT_BUFFER[640 * 640 + i] = data[i * 4 + 1] / 255.0; 
+                        FLOAT_BUFFER[2 * 640 * 640 + i] = data[i * 4 + 2] / 255.0;
+                    }
+                    
+                    let tensor = new ort.Tensor('float32', FLOAT_BUFFER, [1, 3, 640, 640]);
+                    let results = await session.run({ images: tensor });
+                    
+                    drawBoxes(results.output0.data);
+                    
+                    // 🔥 FIX 10: Explicitly dispose tensor and results
+                    if (tensor.dispose) tensor.dispose();
+                tensor = null;
+                results = null;
+                data = null;
+                imageData = null;
+                    if (results.output0) results.output0 = null;
+                    
+                } catch(e) {
+                    console.error('Detection error:', e);
+                }
+                
+                isDetecting = false;
+                detectionLoopId = requestAnimationFrame(detectLoop);
+            }, detectionInterval);
+        }
+
+        function drawBoxes(data) {
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+            
+            const videoRatio = vid.videoWidth / vid.videoHeight;
+            const screenRatio = overlay.width / overlay.height;
+            let renderW, renderH, offsetX, offsetY;
+            
+            if (screenRatio > videoRatio) {
+                renderW = overlay.width; 
+                renderH = renderW / videoRatio;
+                offsetX = 0; 
+                offsetY = (overlay.height - renderH) / 2;
+            } else {
+                renderH = overlay.height; 
+                renderW = renderH * videoRatio;
+                offsetX = (overlay.width - renderW) / 2; 
+                offsetY = 0;
+            }
+            
+            const scaleX = renderW / 640; 
+            const scaleY = renderH / 640;
+            const boxes = 8400;
+            let hasDetection = false;
+            
+            for (let i = 0; i < boxes; i++) {
+                let max = 0; 
+                let idx = 0;
+                for (let c = 0; c < LABELS.length; c++) {
+                    const s = data[(4 + c) * boxes + i];
+                    if (s > max) { max = s; idx = c; }
+                }
+                
+                if (max > 0.50) {
+                    hasDetection = true;
+                    const x = data[0*boxes+i]; 
+                    const y = data[1*boxes+i]; 
+                    const w = data[2*boxes+i]; 
+                    const h = data[3*boxes+i];
+                    const sx = ((x - w/2) * scaleX) + offsetX;
+                    const sy = ((y - h/2) * scaleY) + offsetY;
+                    const sw = w * scaleX; 
+                    const sh = h * scaleY;
+                    
+                    const color = currentMode === 'identify' ? '#06b6d4' : '#6366f1';
+                    
+                    ctx.strokeStyle = color; 
+                    ctx.lineWidth = 3;
+                    ctx.shadowBlur = 8;
+                    ctx.shadowColor = color;
+                    ctx.strokeRect(sx, sy, sw, sh);
+                    ctx.shadowBlur = 0;
+                    
+                    const label = `${LABELS[idx]} ${(max*100).toFixed(0)}%`;
+                    ctx.font = "bold 14px -apple-system, system-ui, sans-serif";
+                    const txtW = ctx.measureText(label).width;
+                    
+                    ctx.fillStyle = color;
+                    let ly = sy - 28; 
+                    if(ly < 0) ly = sy + sh + 4; 
+                    ctx.fillRect(sx, ly, txtW + 12, 24);
+                    
+                    ctx.fillStyle = '#000';
+                    ctx.fillText(label, sx + 6, ly + 16);
+                    
+                    bestLabel = LABELS[idx];
+                    detectionLabel.innerText = LABELS[idx].replace(/-/g, ' ').toUpperCase();
+                }
+            }
+            
+            if (hasDetection) {
+                detectionBadge.classList.add('visible');
+            } else {
+                detectionBadge.classList.remove('visible');
+                bestLabel = "Unknown";
+            }
+        }
+
+        function startRecording() {
+            if (!recognizer) { 
+                alert("Voice recognition not supported in this browser"); 
+                return false; 
+            }
+            if (!micPermissionGranted) {
+                alert("Microphone permission not granted. Please reload the app and allow microphone access.");
+                return false;
+            }
+            try { 
+                recognizer.start(); 
+                return true;
+            } catch(e) {
+                console.error("Failed to start recording:", e);
+                return false;
+            }
+        }
+        
+        function stopRecording() {
+            if (recognizer && isMicActive) {
+                recognizer.stop();
+            }
+        }
+        
+        // 🎤 HOLD-TO-TALK ONLY MODE
+        
+        // Handle voice button press (mousedown/touchstart)
+        voiceBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (!micPermissionGranted) {
+                statusText.innerText = "Please allow mic access on startup";
+                return;
+            }
+            
+            console.log('🎤 Button pressed - starting recording');
+            // Start recording immediately on press
+            isHolding = true;
+            recordedText = "";
+            shouldAnalyzeOnEnd = false; // Reset flag
+            startRecording();
+        });
+        
+        voiceBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!micPermissionGranted) {
+                statusText.innerText = "Please allow mic access on startup";
+                return;
+            }
+            
+            console.log('🎤 Button pressed (touch) - starting recording');
+            // Start recording immediately on press
+            isHolding = true;
+            recordedText = "";
+            shouldAnalyzeOnEnd = false; // Reset flag
+            startRecording();
+        });
+        
+        // Handle voice button release (mouseup/touchend)
+        voiceBtn.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            if (isHolding) {
+                console.log('🎤 Button released - stopping recording and marking for analysis');
+                isHolding = false;
+                shouldAnalyzeOnEnd = true; // Mark that we should analyze when recording ends
+                stopRecording();
+                // Analysis will trigger in recognizer.onend
+            }
+        });
+        
+        voiceBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (isHolding) {
+                console.log('🎤 Button released (touch) - stopping recording and marking for analysis');
+                isHolding = false;
+                shouldAnalyzeOnEnd = true; // Mark that we should analyze when recording ends
+                stopRecording();
+                // Analysis will trigger in recognizer.onend
+            }
+        });
+        
+        // Handle when user drags off button while holding
+        voiceBtn.addEventListener('mouseleave', () => {
+            if (isHolding) {
+                console.log('🎤 Mouse left button while holding - stopping recording and marking for analysis');
+                isHolding = false;
+                shouldAnalyzeOnEnd = true; // Mark that we should analyze when recording ends
+                stopRecording();
+                // Analysis will trigger in recognizer.onend
+            }
+        });
+        
+        voiceBtn.addEventListener('touchcancel', () => {
+            if (isHolding) {
+                console.log('🎤 Touch cancelled - stopping recording and marking for analysis');
+                isHolding = false;
+                shouldAnalyzeOnEnd = true; // Mark that we should analyze when recording ends
+                stopRecording();
+                // Analysis will trigger in recognizer.onend
+            }
+        });
+
+        function performScan(voiceText) {
+    console.log('📸 performScan called with voiceText:', voiceText);
+    statusText.innerText = "Analyzing...";
+    saveState();
+
+    // Capture a single frame
+    const capCvs = document.getElementById('cap-canvas');
+    capCvs.width = vid.videoWidth;
+    capCvs.height = vid.videoHeight;
+    const tempCtx = capCvs.getContext('2d', { alpha: false });
+    tempCtx.drawImage(vid, 0, 0);
+
+    // ✅ Use toBlob (much lower memory than toDataURL on iOS)
+    capCvs.toBlob((blob) => {
+        // Clear canvas after blob is created
+        try { tempCtx.clearRect(0, 0, capCvs.width, capCvs.height); } catch(e) {}
+
+        if (!blob) {
+            statusText.innerText = "Capture failed";
+            return;
+        }
+
+        const fd = new FormData();
+        fd.append('image', blob, 'capture.jpg');
+        fd.append('mode', currentMode);
+        fd.append('local_detection', bestLabel);
+        fd.append('custom_prompt', voiceText || '');
+
+        console.log('📤 Sending analysis request to server...');
+        fetch('/analyze', { method: 'POST', body: fd })
+            .then(res => res.json())
+            .then(d => {
+                console.log('✅ Analysis complete, showing result');
+                resultContent.innerHTML = d.result;
+                sheet.classList.add('open');
+                isSheetOpen = true;
+                statusText.innerText = "Analysis Complete";
+                statusPill.classList.remove('recording');
+                statusDot.classList.remove('rec');
+                statusDot.classList.add('active');
+
+                checkMemory();
+                saveState();
+            })
+            .catch(e => {
+                console.error('❌ Analysis error:', e);
+                statusText.innerText = "Error";
+                saveState();
+            });
+    }, 'image/jpeg', 0.7);
+}
+
+        function closeSheet() { 
+            sheet.classList.remove('open'); 
+            isSheetOpen = false; 
+            statusText.innerText = "Ready"; 
+            saveState();
+        }
+        
+        window.setMode = (m, ev) => {
+            currentMode = m;
+            document.querySelectorAll('.mode-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === currentMode);
+            });
+            saveState();
+        };
+    </script>
+</body>
+</html>

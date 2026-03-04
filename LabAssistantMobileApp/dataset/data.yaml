@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 4
+names: ['arduino-nano-iot-33', 'esp32-dev', 'led-diode', 'raspberry-pi-pico-w']
+
+roboflow:
+  workspace: myworkspace-dmvns
+  project: labassistant-detection
+  version: 3
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/myworkspace-dmvns/labassistant-detection/dataset/3

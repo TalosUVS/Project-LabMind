@@ -1,0 +1,2 @@
+// Ignores .env at any depth
+**/.env
